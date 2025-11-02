@@ -98,6 +98,7 @@ class Preprocessor:
         for _, row in holidays_df.iterrows():
             mask = (df["date"] >= row['Date de début']) & (df["date"] <= row['Date de fin'])
             df.loc[mask, 'is_holiday'] = True
+            df.loc[mask, 'holiday_name'] = row['Description']
         
     def fill_nan(self, df: pd.DataFrame):
         df['Date et heure de comptage'] = pd.to_datetime(df['Date et heure de comptage'], utc=False)
