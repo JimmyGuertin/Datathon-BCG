@@ -1,177 +1,87 @@
-﻿# Datathon-BCG
+# 🚗 Datathon-BCG – Prédiction du Débit Horaire
 
-🚗 Prédiction du Débit Horaire – Pipeline LSTM
-🧠 Objectif
+## 🧠 Objectif
+Ce projet vise à **prédire le débit horaire de circulation** sur un axe routier parisien à partir de **données temporelles, calendaires et météorologiques**.  
+Le modèle principal est un **réseau de neurones LSTM**, entraîné sur des **séquences temporelles glissantes**.
 
-Ce projet vise à prédire le débit horaire de circulation sur un axe routier parisien à partir de données temporelles, calendaires et météorologiques.
-Le modèle principal est un réseau de neurones LSTM, entraîné sur des séquences temporelles glissantes.
+---
 
-⚙️ Pipeline de Préparation des Données
-🗓️ 1. Ordonnancement temporel
+## ⚙️ Pipeline de Préparation des Données
 
-Les données sont triées par date et heure afin d’assurer la cohérence chronologique et d’éviter le data leakage pendant l’entraînement.
+### 🗓️ 1. Ordonnancement temporel
+Les données sont triées par date et heure afin d’assurer la cohérence chronologique et d’éviter le *data leakage*.
 
-df = df.sort_values('date')
+---
 
-🕒 2. Extraction des composantes temporelles
+### 🕒 2. Extraction des composantes temporelles
+À partir de la colonne `date`, on extrait plusieurs variables utiles :  
+- Mois (`month`)  
+- Jour (`day`)  
+- Heure (`hour`)  
+- Jour de la semaine (`weekday`)  
+- Indicateur week-end (`is_weekend`)
 
-À partir de la colonne date, on extrait plusieurs variables utiles :
+---
 
-month → mois de l’année
+### 🎒 3. Vacances scolaires
+On identifie si une date correspond à une période de **vacances scolaires parisiennes** (zone C).  
+Périodes principales : Toussaint, Noël, Hiver, Printemps, Été 2024-2025.  
 
-day → jour du mois
+---
 
-hour → heure de la journée
+### 🎉 4. Jours fériés
+Création d’une variable binaire pour signaler les **jours fériés français** (1er janvier, 8 mai, 14 juillet, 25 décembre, etc.).
 
-weekday → jour de la semaine (0 = lundi, 6 = dimanche)
+---
 
-is_weekend → indicateur binaire (samedi ou dimanche)
+### 🔄 5. Encodage cyclique des variables temporelles
+Pour capturer la **périodicité naturelle du temps** (heures, jours, mois), on encode les variables temporelles de manière cyclique.
 
-df['month'] = df['date'].dt.month
-df['day'] = df['date'].dt.day
-df['hour'] = df['date'].dt.hour
-df['weekday'] = df['date'].dt.weekday
-df['is_weekend'] = df['weekday'] >= 5
+---
 
-🎒 3. Définition des vacances scolaires
+### 🧩 6. Gestion des valeurs manquantes
+Les valeurs manquantes de la variable cible (`Débit horaire`) sont **interpolées temporellement** afin de garantir la continuité du signal.
 
-Une fonction dédiée identifie si une date correspond à une période de vacances scolaires parisiennes (zone C).
-Les principales périodes prises en compte sont :
+---
 
-Toussaint 2024 & 2025
+### 🌦️ 7. Fusion avec les données météorologiques
+On fusionne les données trafic avec les données météorologiques issues de l’API **Open-Meteo**.  
+Variables intégrées : température, vent, précipitations, couverture nuageuse.
 
-Noël 2024 & 2025
+---
 
-Hiver, Printemps et Été 2025
+## 🤖 Modélisation LSTM
 
-Cela crée une colonne binaire : Vacances Scolaires Paris.
+### 🧱 1. Sélection des features
+Les variables explicatives incluent les composantes temporelles, les indicateurs calendaires et les données météorologiques.
 
-df['Vacances Scolaires Paris'] = df['date'].apply(est_vacances_paris)
+---
 
-🎉 4. Identification des jours fériés
+### ⚙️ 2. Normalisation
+Toutes les features et la variable cible sont normalisées pour l’apprentissage du modèle.
 
-Une variable binaire is_holiday est ajoutée pour signaler les jours fériés français (1er janvier, 8 mai, 14 juillet, 25 décembre, etc.).
+---
 
-jours_feries = [...]  # liste des jours fériés français
-df['is_holiday'] = df['date'].isin(jours_feries)
+### 🧮 3. Création des séquences temporelles
+Des **séquences glissantes** de longueur 24h ou 168h sont créées pour alimenter le LSTM.
 
-🔄 5. Encodage cyclique des variables temporelles
+---
 
-Pour capturer la périodicité naturelle du temps (heures, jours, mois), les variables temporelles sont encodées en sinus et cosinus :
+### 🔀 4. Split temporel train/test
+Le découpage du jeu de données respecte la **chronologie** : pas de mélange aléatoire.
 
-df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24)
-df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24)
+---
 
-df['weekday_sin'] = np.sin(2 * np.pi * df['weekday'] / 7)
-df['weekday_cos'] = np.cos(2 * np.pi * df['weekday'] / 7)
+### 🧠 5. Modèle LSTM
+Le modèle est un **réseau LSTM séquentiel** avec régularisation par Dropout et une couche dense pour la régression.
 
-df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
-df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
+---
 
-🧩 6. Gestion des valeurs manquantes
+### 🏋️‍♂️ 6. Entraînement
+Le modèle est entraîné sur le jeu d’entraînement et validé sur le jeu de test.
 
-Les valeurs manquantes de la variable cible (Débit horaire) sont interpolées temporellement afin de garantir la continuité du signal avant apprentissage.
+---
 
-df['Débit horaire'] = df['Débit horaire'].interpolate(method='time')
-
-🌦️ 7. Fusion avec les données météorologiques
-
-Les données de trafic sont fusionnées avec des données météorologiques (issues de l’API Open-Meteo).
-Les variables intégrées incluent :
-
-temperature_2m (°C)
-
-wind_speed_10m (km/h)
-
-precipitation (mm)
-
-cloud_cover (%)
-
-df_meteo = pd.read_csv("open-meteo-48.86N2.34E50m.csv", sep=",", header=2)
-df_meteo['date'] = pd.to_datetime(df_meteo['time'])
-df = df.merge(df_meteo, on='date', how='left')
-
-🤖 Modélisation LSTM
-🧱 1. Sélection des features
-
-Les variables explicatives incluent les composantes temporelles, les indicateurs calendaires et les données météo :
-
-features = [
-    'hour_sin', 'hour_cos',
-    'weekday_sin', 'weekday_cos',
-    'month_sin', 'month_cos',
-    'dayofyear_sin', 'dayofyear_cos',
-    'is_weekend', 'is_holiday',
-    'Vacances Scolaires Paris',
-    'temperature_2m (°C)', 'wind_speed_10m (km/h)',
-    'precipitation (mm)', 'cloud_cover (%)'
-]
-target = 'Débit horaire'
-
-⚙️ 2. Normalisation
-
-Les features et la cible sont normalisées via MinMaxScaler.
-
-scaler_X = MinMaxScaler()
-scaler_y = MinMaxScaler()
-
-X_scaled = scaler_X.fit_transform(df[features])
-y_scaled = scaler_y.fit_transform(df[[target]])
-
-🧮 3. Création des séquences temporelles
-
-Les séquences glissantes de longueur seq_length (ex. 24h ou 168h) servent d’entrée au LSTM.
-
-def create_sequences(X, y, seq_length=24):
-    X_seq, y_seq = [], []
-    for i in range(seq_length, len(X)):
-        X_seq.append(X[i-seq_length:i])
-        y_seq.append(y[i])
-    return np.array(X_seq), np.array(y_seq)
-
-X_seq, y_seq = create_sequences(X_scaled, y_scaled, seq_length=168)
-
-🔀 4. Split temporel train/test
-
-Le découpage respecte la chronologie des données (pas de shuffle).
-
-train_size = int(len(X_seq) * 0.9)
-X_train, X_test = X_seq[:train_size], X_seq[train_size:]
-y_train, y_test = y_seq[:train_size], y_seq[train_size:]
-
-🧠 5. Modèle LSTM
-
-Le modèle est un réseau LSTM séquentiel avec régularisation par Dropout et une couche dense finale pour la régression.
-
-model = Sequential([
-    LSTM(64, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False),
-    Dropout(0.2),
-    Dense(1)
-])
-model.compile(optimizer='adam', loss='mse')
-
-🏋️‍♂️ 6. Entraînement
-history = model.fit(
-    X_train, y_train,
-    epochs=10,
-    batch_size=32,
-    validation_data=(X_test, y_test),
-    shuffle=False
-)
-
-📊 7. Évaluation
-
-L’évaluation repose sur la Root Mean Squared Error (RMSE) et l’erreur relative sur le jeu de test.
-
-y_pred = model.predict(X_test)
-
-y_test_inv = scaler_y.inverse_transform(y_test)
-y_pred_inv = scaler_y.inverse_transform(y_pred)
-
-rmse = np.sqrt(mean_squared_error(y_test_inv, y_pred_inv))
-mean_target = np.mean(y_test_inv)
-relative_error = rmse / mean_target * 100
-
-print(f"✅ RMSE sur le test : {rmse:.2f}")
-print(f"📊 Moyenne du débit horaire : {mean_target:.2f}")
-print(f"⚖️ Erreur relative : {relative_error:.2f}%")
+### 📊 7. Évaluation
+L’évaluation se fait avec la **Root Mean Squared Error (RMSE)** et l’**erreur relative** sur le jeu de test.  
+On peut ainsi mesurer la performance et la précision de la prédiction du débit horaire.
