@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+import os
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+import tensorflow as tf
+
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
@@ -213,13 +217,24 @@ def evaluate_lstm_seq2seq(model, X_test, y_test, scalers_y, targets, n_plot=72):
         rmse = np.sqrt(mean_squared_error(y_test_inv[:, :, i].flatten(), y_pred_inv[:, :, i].flatten()))
         mean_val = np.mean(y_test_inv[:, :, i])
         print(f"✅ {t} : RMSE = {rmse:.2f}, Moyenne = {mean_val:.2f}, Erreur relative = {rmse/mean_val*100:.2f}%")
+
+    # Calcul métriques par target
+    for i, t in enumerate(targets):
+        # Sélection des 72 premières valeurs
+        y_true = y_test_inv[:72, :, i].flatten()
+        y_pred = y_pred_inv[:72, :, i].flatten()
+
+        # Calcul des métriques
+        rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+        mean_val = np.mean(y_true)
+        print(f"✅ {t} : RMSE = {rmse:.2f}, Moyenne = {mean_val:.2f}, Erreur relative = {rmse/mean_val*100:.2f}%")
     
     # Plot premier échantillon
     plt.figure(figsize=(12, 6))
     for i, t in enumerate(targets):
         plt.subplot(len(targets), 1, i+1)
-        plt.plot(y_test_inv[0, :n_plot, i], label=f"{t} réel", marker='o')
-        plt.plot(y_pred_inv[0, :n_plot, i], label=f"{t} prédit", marker='x')
+        plt.plot(y_test_inv[0,:n_plot, i], label=f"{t} réel", marker='o')
+        plt.plot(y_pred_inv[0,:n_plot, i], label=f"{t} prédit", marker='x')
         plt.title(f"{t} : Prédictions vs Réel (premier échantillon)")
         plt.xlabel("Pas de temps")
         plt.ylabel(t)

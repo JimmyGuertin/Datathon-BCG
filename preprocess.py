@@ -32,8 +32,7 @@ def create_datetime_features(df, datetime_col='Date et heure de comptage'):
     """
 
     # Convertir en datetime (UTC pour homogénéité)
-    df[datetime_col] = pd.to_datetime(df[datetime_col], errors='coerce', utc=True)
-
+    df[datetime_col] = (pd.to_datetime(df[datetime_col], errors='coerce', utc=True))#.dt.tz_convert('Europe/Paris'))
     # Extraire features
     df['date'] = df[datetime_col].dt.date
     df['hour'] = df[datetime_col].dt.hour
