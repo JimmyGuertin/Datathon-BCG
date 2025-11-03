@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import TimeSeriesSplit
 import xgboost as xgb
 
 class XGBoostModel:
@@ -98,3 +99,44 @@ class XGBoostModel:
             results[t] = {'RMSE': rmse, 'Mean': mean_val, 'RelError(%)': rel_error}
             print(f"{t} : RMSE = {rmse:.2f}, Mean = {mean_val:.2f}, Relative Error = {rel_error:.2f}%")
         return y_true_array, y_pred
+    
+    def cross_validate(self, n_splits=5, **xgb_params):
+        """
+        TimeSeries cross-validation
+        """
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+        X = self.scaler_X.transform(self.df[self.features].values)
+        y = np.column_stack([self.scalers_y[t].transform(self.df[[t]]) for t in self.targets])
+
+        cv_results = {t: [] for t in self.targets}
+
+        for train_idx, test_idx in tscv.split(X):
+            X_train_cv, X_test_cv = X[train_idx], X[test_idx]
+            y_train_cv, y_test_cv = y[train_idx], y[test_idx]
+            
+            for i, t in enumerate(self.targets):
+                model = xgb.XGBRegressor(
+                    objective='reg:squarederror',
+                    n_estimators=200,
+                    learning_rate=0.05,
+                    max_depth=5,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    random_state=42,
+                    **xgb_params
+                )
+                model.fit(X_train_cv, y_train_cv[:, i])
+                y_pred_cv = model.predict(X_test_cv)
+                y_pred_cv = self.scalers_y[t].inverse_transform(y_pred_cv.reshape(-1,1)).ravel()
+                y_true_cv = self.scalers_y[t].inverse_transform(y_test_cv[:, i].reshape(-1,1)).ravel()
+                
+                rmse = np.sqrt(mean_squared_error(y_true_cv, y_pred_cv))
+                cv_results[t].append(rmse)
+        
+        # Display
+        for t in self.targets:
+            rmses = cv_results[t]
+            print(f"{t} : CV RMSE mean = {np.mean(rmses):.2f}, std = {np.std(rmses):.2f}")
+        
+        return cv_results
+

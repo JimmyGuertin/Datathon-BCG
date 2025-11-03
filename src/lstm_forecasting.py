@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import TimeSeriesSplit
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
@@ -135,3 +136,45 @@ class LSTMForecaster:
         plt.legend()
         plt.tight_layout()
         plt.show()
+    
+    def time_series_cv(self, X, y, n_splits=5, epochs=10, batch_size=32):
+        """
+        Cross-validation
+        
+        Args:
+            X, y : All sequences
+            n_splits : number of temporal splits
+            epochs, batch_size : parameters
+        """
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+        rmse_list = []
+        rel_error_list = []
+
+        for train_idx, test_idx in tscv.split(X):
+            X_train, X_test = X[train_idx], X[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+
+            # Réinitialisation du modèle
+            self.model = None
+            self.train(X_train, y_train, X_test, y_test, epochs=epochs, batch_size=batch_size)
+
+            y_test_inv, y_pred_inv = self.evaluate(X_test, y_test)
+
+            rmse_split = []
+            rel_error_split = []
+            for i in range(len(self.targets)):
+                rmse_i = np.sqrt(np.mean((y_pred_inv[:,:,i] - y_test_inv[:,:,i])**2))
+                mean_val = np.mean(y_test_inv[:,:,i])
+                rel_error_i = 100 * rmse_i / mean_val
+                rmse_split.append(rmse_i)
+                rel_error_split.append(rel_error_i)
+            rmse_list.append(rmse_split)
+            rel_error_list.append(rel_error_split)
+
+        rmse_array = np.array(rmse_list)
+        rel_error_array = np.array(rel_error_list)
+
+        # Affichage des moyennes et écarts-types
+        for i, target in enumerate(self.targets):
+            print(f"{target} : RMSE CV mean = {rmse_array[:,i].mean():.2f} ± {rmse_array[:,i].std():.2f}, "
+                  f"RelError CV mean = {rel_error_array[:,i].mean():.2f}% ± {rel_error_array[:,i].std():.2f}%")
