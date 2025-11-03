@@ -14,7 +14,7 @@ class XGBoostModel:
         self.scaler_X = None
         self.scalers_y = {}
     
-    def prepare_data(self, train_ratio=0.8):
+    def prepare_data(self, horizon=72):
         """
         Data preparation: scaling, log-transform (if needed), train/test split
         """
@@ -36,11 +36,15 @@ class XGBoostModel:
             if self.log_transform:
                 y_scaled[:, i] = np.log1p(y[:, i])
         
-        # Train/test split
-        split_idx = int(len(df) * train_ratio)
+        # Split train/test by last 'horizon' hours
+        split_idx = len(df) - horizon
         self.X_train, self.X_test = X_scaled[:split_idx], X_scaled[split_idx:]
         self.y_train, self.y_test = y_scaled[:split_idx], y_scaled[split_idx:]
         self.df_test = df.iloc[split_idx:]
+
+        print(f"Train set: {self.X_train.shape}, Test set: {self.X_test.shape} ({horizon} hours)")
+
+
     
     def fit(self, **xgb_params):
         """
@@ -81,6 +85,10 @@ class XGBoostModel:
         Evaluate RMSE and relative error on the test set
         """
         y_pred = self.predict()
+
+        y_true_list = [self.df_test[t].values for t in self.targets]
+        y_true_array = np.stack(y_true_list, axis=1)  # shape (n_samples, n_targets)
+        
         results = {}
         for i, t in enumerate(self.targets):
             y_true = self.df_test[t].values
@@ -89,4 +97,4 @@ class XGBoostModel:
             rel_error = 100 * rmse / mean_val
             results[t] = {'RMSE': rmse, 'Mean': mean_val, 'RelError(%)': rel_error}
             print(f"{t} : RMSE = {rmse:.2f}, Mean = {mean_val:.2f}, Relative Error = {rel_error:.2f}%")
-        return results
+        return y_true_array, y_pred

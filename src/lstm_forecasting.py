@@ -7,7 +7,9 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 
 class LSTMForecaster:
-    def __init__(self, seq_length=168, pred_length=24, lstm_units=64, dropout=0.2):
+    def __init__(self, seq_length=168, pred_length=24, lstm_units=64, dropout=0.2,
+                use_weather=True, use_holidays=True, use_sport=True
+                ):
         self.seq_length = seq_length
         self.pred_length = pred_length
         self.lstm_units = lstm_units
@@ -17,18 +19,33 @@ class LSTMForecaster:
         self.scaler_y = None
         self.features = None
         self.targets = ['Débit horaire', "Taux d'occupation"]
+        # Feature selection
+        self.use_weather = use_weather
+        self.use_holidays = use_holidays
+        self.use_sport = use_sport
 
     def prepare_data(self, df):
+        # Base time features
         self.features = [
             'hour_sin', 'hour_cos', 
             'weekday_sin', 'weekday_cos', 
             'month_sin', 'month_cos', 
             'dayofyear_sin', 'dayofyear_cos',
-            'is_weekend', 'is_holiday', 'is_sport_event',
-            'temperature_2m (°C)', 'wind_speed_10m (km/h)',
-            'precipitation (mm)', 'cloud_cover (%)'
+            'is_weekend'
         ]
-        
+        # Conditional features
+        if self.use_holidays:
+            self.features.append('is_holiday')
+        if self.use_sport:
+            self.features.append('is_sport_event')
+        if self.use_weather:
+            self.features += [
+                'temperature_2m (°C)', 
+                'wind_speed_10m (km/h)',
+                'precipitation (mm)', 
+                'cloud_cover (%)'
+            ]
+
         df = df.copy().sort_values('date')
 
         # Remove NaNs
