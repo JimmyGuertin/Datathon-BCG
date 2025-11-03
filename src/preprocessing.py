@@ -145,13 +145,91 @@ class Preprocessor:
         df.drop(columns=['hour_time'], inplace=True)
 
         return df
+
+    def add_sports_events(self, df: pd.DataFrame, sports_df: pd.DataFrame, datetime_col: str = 'Date et heure de comptage'):
+        """
+        Adds sports event features to the traffic dataframe by merging on datetime.
+
+        Parameters:
+            df (pd.DataFrame): traffic dataset
+            sports_df (pd.DataFrame): sports events dataset, must have 'event_time' column
+            datetime_col (str): datetime column in traffic df
+
+        Notes:
+            - Assumes sports_df['event_time'] and df[datetime_col] are compatible datetimes
+            - Merge is done on datetime rounded to hour
+        """
+
+        # Convert sports event time to datetime (if not already)
+        sports_df['date_utc'] = pd.to_datetime(sports_df['date_utc'], errors='coerce', utc=True)
+        sports_df['date_paris'] = sports_df['date_utc'].dt.tz_convert('Europe/Paris').dt.tz_localize(None)
+
+        # Round to hour for matching
+        sports_df['hour_time'] = sports_df['date_paris'].dt.floor('H')
+
+        # List of French teams and big teams
+        french_teams = [
+            'Paris Saint-Germain', 'Olympique de Marseille', 'Olympique Lyonnais', 
+            'AS Monaco', 'Lille OSC', 'RC Lens', 'AS Saint-Étienne', 
+            'Equipe de France', 'France'
+        ]
+
+        big_teams = [
+            'Real Madrid', 'Barcelona', 'FC Barcelona', 'Manchester City', 
+            'Manchester United', 'Liverpool', 'Bayern Munich', 'Chelsea',
+            'Arsenal', 'Inter', 'AC Milan', 'Juventus'
+        ]
+
+        major_competitions = [
+            'UEFA Champions League', 'UEFA Euro', 'World Cup', 'Coupe du Monde',
+            'Ligue 1', 'Europa League', 'Euro', 'Olympic Games'
+        ]
+
+        # Filter for relevant events
+        mask = (
+            sports_df['home_team'].isin(french_teams)
+            | sports_df['away_team'].isin(french_teams)
+            | sports_df['home_team'].isin(big_teams)
+            | sports_df['away_team'].isin(big_teams)
+            | sports_df['competition_name'].isin(major_competitions)
+        )
+
+        sports_filtered = sports_df[mask].copy()
+
+        # Create a summary of events per date
+        sports_filtered['sport_event_name'] = (
+            sports_filtered['competition_name'] + ' : ' +
+            sports_filtered['home_team'] + ' vs ' + sports_filtered['away_team']
+        )
+
+        event_summary = (
+            sports_filtered.groupby('hour_time')['sport_event_name']
+            .apply(lambda x: ', '.join(sorted(set(x))))
+            .reset_index()
+        )
+
+        # Optional: round both to hour for exact matching
+        df['hour_time'] = df['Date et heure de comptage'].dt.floor('H')
+        df = df.merge(event_summary, on='hour_time', how='left')
+
+        # Create binary indicator
+        df['is_sport_event'] = df['sport_event_name'].notna()
+
+        # Drop helper column if you want
+        df.drop(columns=['hour_time'], inplace=True)
+
+        return df
     
-    def preprocess_all(self, holidays_df: pd.DataFrame, weather_df: pd.DataFrame, datetime_col: str='Date et heure de comptage'):
+    def fit_transform(
+        self, holidays_df: pd.DataFrame, weather_df: pd.DataFrame, sports_df: pd.DataFrame,
+        datetime_col: str='Date et heure de comptage'
+    ):
         """
         Runs all preprocessing steps:
         - Fill NaN
         - Create datetime features
         - Add weather data
+        - Add holidays and sport events
         """
         # Create datetime features and holidays
         self.create_datetime_features(self.df, holidays_df)
@@ -159,6 +237,11 @@ class Preprocessor:
         # Merge weather data
         self.df = self.add_weather(self.df, weather_df, datetime_col=datetime_col)
 
+        # Add sport events
+        self.df = self.add_sports_events(self.df, sports_df)
+
         # Fill missing traffic values
         self.df = self.fill_nan(self.df)
-        return self.df    
+
+        return self.df
+    
