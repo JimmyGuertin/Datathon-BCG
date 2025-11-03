@@ -6,7 +6,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 
-class TrafficLSTMForecaster:
+class LSTMForecaster:
     def __init__(self, seq_length=168, pred_length=24, lstm_units=64, dropout=0.2):
         self.seq_length = seq_length
         self.pred_length = pred_length
@@ -79,16 +79,26 @@ class TrafficLSTMForecaster:
             verbose=1
         )
         return history
+    
+    def predict(self, X):
+        """
+        Predict from prepared array (X) and return inverse-transformed results.
+        """
+        if self.model is None:
+            raise ValueError("Model not trained yet.")
+        y_pred_scaled = self.model.predict(X)
+        n_targets = len(self.targets)
+        y_pred_inv = self.scaler_y.inverse_transform(y_pred_scaled.reshape(-1, n_targets))
+        y_pred_inv = y_pred_inv.reshape(X.shape[0], self.pred_length, n_targets)
+        return y_pred_inv
 
     def evaluate(self, X_test, y_test):
-        y_pred = self.model.predict(X_test)
+        """
+        Evaluate model performance using RMSE and relative error.
+        """
+        y_pred_inv = self.predict(X_test)
         n_targets = len(self.targets)
-        y_test_inv = self.scaler_y.inverse_transform(
-            y_test.reshape(-1, n_targets)
-        ).reshape(y_test.shape)
-        y_pred_inv = self.scaler_y.inverse_transform(
-            y_pred.reshape(-1, n_targets)
-        ).reshape(y_test.shape)
+        y_test_inv = self.scaler_y.inverse_transform(y_test.reshape(-1, n_targets)).reshape(y_test.shape)
 
         for i, target in enumerate(self.targets):
             rmse = np.sqrt(np.mean((y_pred_inv[:,:,i] - y_test_inv[:,:,i])**2))
