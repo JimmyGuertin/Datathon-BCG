@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
+from typing import Optional, List, Dict
 
 class Preprocessor:
     def __init__(self, df):
         self.df = df
+        self.targets =  ['Débit horaire', "Taux d'occupation"]
     
     def create_datetime_features(self, df: pd.DataFrame, holidays_df: pd.DataFrame, datetime_col: str ='Date et heure de comptage') -> pd.DataFrame:
         """
@@ -99,6 +101,80 @@ class Preprocessor:
             mask = (df["date"] >= row['Date de début']) & (df["date"] <= row['Date de fin'])
             df.loc[mask, 'is_holiday'] = True
             df.loc[mask, 'holiday_name'] = row['Description']
+        
+    def flag_outliers_iqr(
+        self,
+        df: pd.DataFrame,
+        columns: Optional[list] = None,
+        multiplier: float = 1.5,
+        suffix: str = '_outlier_iqr',
+        record_bounds: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Add columns to flag outliers when the given variables expand outside its boundaries
+        """
+        # Déterminer les colonnes à traiter
+        if columns is None:
+            cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+        else:
+            cols = [c for c in columns if c in df.columns]
+
+        bounds: Dict[str, tuple] = {}
+        for c in cols:
+            series = df[c]
+            # Coercion prudente en numérique si nécessaire
+            if not pd.api.types.is_numeric_dtype(series):
+                series = pd.to_numeric(series, errors='coerce')
+
+            if series.dropna().empty:
+                lower = np.nan
+                upper = np.nan
+            else:
+                q1 = series.quantile(0.25)
+                q3 = series.quantile(0.75)
+                iqr = q3 - q1
+                lower = q1 - multiplier * iqr
+                upper = q3 + multiplier * iqr
+
+            bounds[c] = (lower, upper)
+            flag_col = f"{c}{suffix}"
+            if pd.isna(lower) or pd.isna(upper):
+                df[flag_col] = False
+            else:
+                mask = (series < lower) | (series > upper)
+                df[flag_col] = mask.fillna(False)
+
+        if record_bounds:
+            self._iqr_bounds = bounds
+
+        return df
+
+    def flag_outliers_on_targets(
+        self,
+        df: pd.DataFrame,
+        targets: Optional[List[str]] = None,
+        multiplier: float = 1.5,
+        suffix: str = '_outlier_iqr',
+        record_bounds: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Convenience wrapper to flag outliers only on the forecasting target columns.
+
+        By default, if `targets` is None, uses the common targets
+        ['Débit horaire', "Taux d'occupation"]. Only the targets present in `df`
+        will be processed.
+        """
+        if targets is None:
+            targets = ['Débit horaire', "Taux d'occupation"]
+
+        present_targets = [t for t in targets if t in df.columns]
+        if not present_targets:
+            # nothing to do
+            return df
+
+        return self.flag_outliers_iqr(
+            df, columns=present_targets, multiplier=multiplier, suffix=suffix, record_bounds=record_bounds
+        )
         
     def fill_nan(self, df: pd.DataFrame):
         df['Date et heure de comptage'] = pd.to_datetime(df['Date et heure de comptage'], utc=False)
@@ -242,6 +318,9 @@ class Preprocessor:
 
         # Fill missing traffic values
         self.df = self.fill_nan(self.df)
+
+        # Add outliers flags
+        self.df = self.flag_outliers_on_targets(df=self.df, targets=self.targets, record_bounds=False)
 
         return self.df
     
