@@ -229,11 +229,31 @@ class LSTMTimeSeries:
     # Métriques
     # -----------------------------
     @staticmethod
-    def evaluate_metrics(y_true, y_pred):
+    def evaluate_metrics(y_true, y_pred, target_name=None):
+        """
+        Calcule les métriques pour une seule target.
+        Arguments :
+            y_true : array (n_samples,)
+            y_pred : array (n_samples,)
+            target_name : str (optionnel, pour affichage)
+        Retourne : dict contenant RMSE, MAPE, RMSE/mean, mean
+        """
+
         rmse = np.sqrt(mean_squared_error(y_true, y_pred))
         mape = mean_absolute_percentage_error(y_true, y_pred)
-        rmse_mean = rmse / np.mean(y_true)
-        return rmse, mape, rmse_mean, np.mean(y_true)
+        true_mean = np.mean(y_true)
+        rmse_mean = rmse / true_mean
+
+        if target_name:
+            print(f"{target_name:<25} RMSE: {rmse:.2f}, MEAN: {true_mean:.2f}, "
+                f"MAPE: {mape:.2%}, RMSE/mean: {rmse_mean:.2%}")
+
+        return {"target": target_name,
+            "rmse": rmse,
+            "mean": true_mean,
+            "mape": mape,
+            "rmse_mean": rmse_mean}
+
 
     # -----------------------------
     # Normalisation
@@ -280,14 +300,16 @@ class LSTMTimeSeries:
             y_val_pred_scaled = self.model.predict(X_val).reshape(y_val.shape)
             y_val_pred = self.scaler_y.inverse_transform(y_val_pred_scaled.reshape(-1, len(self.targets)))
             y_val_true = self.scaler_y.inverse_transform(y_val.reshape(-1, len(self.targets)))
-            rmse, mape, rmse_mean, true_mean = self.evaluate_metrics(y_val_true, y_val_pred)
-            rmses.append(rmse)
-            mapes.append(mape)
-            true_means.append(true_mean)
-            rmse_means.append(rmse_mean)
-            print(f"Fold {fold+1} - RMSE: {rmse:.2f}, MEAN: {true_mean:.2f}, MAPE: {mape:.2%}, RMSE/mean: {rmse_mean:.2%}")
 
-        print(f"SPLITS MEAN - RMSE: {np.mean(rmses):.2f}, MEAN: {np.mean(true_means):.2f}, MAPE: {np.mean(mapes):.2%}, RMSE/mean: {np.mean(rmse_means):.2%}")
+            metrics_per_target = []
+            print(f"\n===== Fold {fold+1} =====")
+            for i, target_name in enumerate(self.targets):
+                metrics = self.evaluate_metrics(
+                    y_val_true[:, i], y_val_pred[:, i],
+                    target_name=target_name
+                )
+                metrics_per_target.append(metrics)
+
     # -----------------------------
     # Entraînement final sur toutes les données
     # -----------------------------

@@ -15,7 +15,7 @@ def order_by_date(df_champs):
 # -----------------------------
 # 2. Créer les features datetime et optionnellement compléter les heures manquantes
 # -----------------------------
-def create_datetime_features(df, datetime_col='Date et heure de comptage', fill_hours=False):
+def create_datetime_features(df, fill_hours, datetime_col='Date et heure de comptage'):
     """
     Convertit une colonne en datetime, crée des features temporelles et peut compléter les heures manquantes.
 
@@ -310,10 +310,10 @@ def mark_outliers_and_special_events(df, targets, special_events_dict, top_n=20,
     
     return df
 
-def pipeline(df_champs,window):
+def pipeline(df_champs,window,fill_hours):
     df_champs=order_by_date(df_champs)
 
-    df_champs = create_datetime_features(df_champs,fill_hours=True)
+    df_champs = create_datetime_features(df_champs,fill_hours)
 
     df_champs=vacances_by_zone(df_champs)
 
