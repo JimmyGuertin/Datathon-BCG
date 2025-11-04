@@ -188,6 +188,7 @@ def train_lstm_seq2seq(df, features, targets, seq_length=168, pred_length=72,
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error
 import numpy as np
+from sklearn.metrics import r2_score
 
 def evaluate_lstm_seq2seq(model, X_test, y_test, scalers_y, targets, n_plot=72):
     """
@@ -227,6 +228,8 @@ def evaluate_lstm_seq2seq(model, X_test, y_test, scalers_y, targets, n_plot=72):
         # Calcul des métriques
         rmse = np.sqrt(mean_squared_error(y_true, y_pred))
         mean_val = np.mean(y_true)
+        r2 = r2_score(y_true, y_pred)
+        print("R² :", r2)
         print(f"✅ {t} : RMSE = {rmse:.2f}, Moyenne = {mean_val:.2f}, Erreur relative = {rmse/mean_val*100:.2f}%")
     
     # Plot premier échantillon

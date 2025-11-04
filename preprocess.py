@@ -1,5 +1,3 @@
-
-
 import pandas as pd
 import holidays
 import numpy as np
@@ -99,7 +97,67 @@ def fill_nan(df_champs):
     return(df_champs)
 
 
+def add_trafic_flow_around(df_champs, csv_path, on_cols=None, suffix="_around"):
+    """
+    Ajoute des features de trafic de tronçons aux alentours à partir d'un CSV externe.
+    Les valeurs manquantes sont remplacées par celles de la colonne de base + un léger bruit.
 
+    Paramètres
+    ----------
+    df_champs : pd.DataFrame
+        Données principales (tronçons cibles, ex: Champs-Élysées).
+    csv_path : str
+        Chemin vers le fichier CSV contenant les données des tronçons voisins.
+    on_cols : list of str, optional
+        Liste des colonnes de jointure (par défaut ['Date et heure de comptage']).
+    suffix : str, optional
+        Suffixe ajouté aux colonnes du CSV fusionné pour éviter les collisions.
+
+    Retourne
+    --------
+    pd.DataFrame
+        DataFrame fusionné avec les nouvelles features de trafic.
+    """
+
+    datetime_col = "Date et heure de comptage"
+    df_neighbors = pd.read_csv(csv_path,sep=";",encoding="utf-8")
+    if "DÃ©bit horaire" in df_neighbors.columns:
+        df_neighbors = df_neighbors.rename(columns={'DÃ©bit horaire':'Débit horaire'})
+    df_neighbors = df_neighbors.loc[df_neighbors["Identifiant arc"]==4274,:]
+    df_neighbors[datetime_col] = pd.to_datetime(df_neighbors[datetime_col], errors="coerce", utc=True)
+
+    if on_cols is None:
+        on_cols = [datetime_col]
+
+    # Merge gauche
+    df_merged = pd.merge(
+        df_champs,
+        df_neighbors[[datetime_col, "Débit horaire", "Taux d'occupation"]],
+        how="left",
+        on=datetime_col,
+        suffixes=("", suffix)
+    )
+
+    # Vérif des valeurs manquantes avant remplacement
+    missing_before = df_merged[[f"Débit horaire{suffix}", f"Taux d'occupation{suffix}"]].isna().sum().sum()
+    print(f"[INFO] Valeurs manquantes après merge : {missing_before}")
+
+    # Remplacement des NaN : valeur originale + léger bruit
+    for col in ["Débit horaire", "Taux d'occupation"]:
+        col_around = f"{col}{suffix}"
+
+        # calcul du bruit : 1 à 2% du signal, bruit gaussien centré
+        noise = np.random.normal(loc=0, scale=0.02 * df_merged[col].std(), size=len(df_merged))
+
+        # remplacer les NaN
+        df_merged[col_around] = df_merged[col_around].fillna(df_merged[col] + noise)
+
+    # Vérif après remplissage
+    missing_after = df_merged[[f"Débit horaire{suffix}", f"Taux d'occupation{suffix}"]].isna().sum().sum()
+    print(f"[INFO] Valeurs manquantes après remplacement : {missing_after}")
+    print(f"[INFO] Merge terminé : {df_merged.shape[0]} lignes, {df_merged.shape[1]} colonnes")
+
+    return df_merged
 
 
 
