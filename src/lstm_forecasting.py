@@ -162,7 +162,7 @@ class LSTMForecaster:
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
 
-            # Réinitialisation du modèle
+            # Re-initialization of the model
             self.model = None
             self.train(X_train, y_train, X_test, y_test, epochs=epochs, batch_size=batch_size)
 
@@ -182,7 +182,7 @@ class LSTMForecaster:
         rmse_array = np.array(rmse_list)
         rel_error_array = np.array(rel_error_list)
 
-        # Affichage des moyennes et écarts-types
+        # Display metrics
         for i, target in enumerate(self.targets):
             print(f"{target} : RMSE CV mean = {rmse_array[:,i].mean():.2f} ± {rmse_array[:,i].std():.2f}, "
                   f"RelError CV mean = {rel_error_array[:,i].mean():.2f}% ± {rel_error_array[:,i].std():.2f}%")
