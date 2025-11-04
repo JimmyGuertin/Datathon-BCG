@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import pandas as pd
 import holidays
 import numpy as np
@@ -310,7 +312,7 @@ def mark_outliers_and_special_events(df, targets, special_events_dict, top_n=20,
     
     return df
 
-def pipeline(df_champs,window,fill_hours):
+def pipeline(df_champs,window,fill_hours,fillna=True):
     df_champs=order_by_date(df_champs)
 
     df_champs = create_datetime_features(df_champs,fill_hours)
@@ -324,8 +326,8 @@ def pipeline(df_champs,window,fill_hours):
     df_champs['day_type'] = df_champs.apply(day_type, axis=1)
 
     df_champs = add_cyclic_features(df_champs)
-    
-    df_champs=fill_nan(df_champs)
+    if fillna:
+        df_champs=fill_nan(df_champs)
     
     df_champs=merge_meteo(df_champs)
     

@@ -266,13 +266,23 @@ class LSTMTimeSeries:
     # -----------------------------
     # Cross-validation temporelle
     # -----------------------------
-    def cross_validate(self, df, n_splits=5, epochs=20, batch_size=32):
+    def cross_validate(self, df, df_original=None, n_splits=5, epochs=20, batch_size=32):
+        """
+        Cross-validation temporelle sur les séquences LSTM.
+        
+        Arguments :
+            df : pd.DataFrame, données éventuellement lissées pour l'entraînement
+            df_original : pd.DataFrame, données originales pour l'évaluation (sans rolling mean)
+            n_splits : int, nombre de folds
+            epochs : int
+            batch_size : int
+        """
         X_scaled, y_scaled = self.scale_data(df)
         X_seq, y_seq = self.create_sequences(X_scaled, y_scaled)
-        rmses = []
-        mapes = []
-        true_means = []
-        rmse_means = []
+        if df_original is not None:
+        # Créer les mêmes séquences sur les données originales
+            X_orig, y_orig = self.create_sequences(df_original[self.features].values,
+                                               df_original[self.targets].values)
         
         tscv = TimeSeriesSplit(n_splits=n_splits)
         for fold, (train_idx, val_idx) in enumerate(tscv.split(X_seq)):
@@ -293,14 +303,21 @@ class LSTMTimeSeries:
                 epochs=epochs,
                 batch_size=batch_size,
                 callbacks=[early_stop],
-                verbose=0 # verbose = 1 si tu veux suivre l'avancement
+                verbose=0
             )
 
-            # Prédiction et métriques
+            # Prédiction
             y_val_pred_scaled = self.model.predict(X_val).reshape(y_val.shape)
             y_val_pred = self.scaler_y.inverse_transform(y_val_pred_scaled.reshape(-1, len(self.targets)))
-            y_val_true = self.scaler_y.inverse_transform(y_val.reshape(-1, len(self.targets)))
 
+            # ---- Choisir les vraies valeurs pour l'évaluation ----
+            # Utiliser les séquences originales pour la vraie évaluation
+            if df_original is not None:
+                y_val_true = y_orig[val_idx].reshape(-1, len(self.targets))
+            else:
+                y_val_true = self.scaler_y.inverse_transform(y_val.reshape(-1, len(self.targets)))
+
+            # Évaluation par target
             metrics_per_target = []
             print(f"\n===== Fold {fold+1} =====")
             for i, target_name in enumerate(self.targets):
@@ -309,6 +326,7 @@ class LSTMTimeSeries:
                     target_name=target_name
                 )
                 metrics_per_target.append(metrics)
+
 
     # -----------------------------
     # Entraînement final sur toutes les données
