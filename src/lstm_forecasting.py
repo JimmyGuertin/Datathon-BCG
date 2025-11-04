@@ -9,7 +9,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 
 class LSTMForecaster:
     def __init__(self, seq_length=168, pred_length=24, lstm_units=64, dropout=0.2,
-                use_weather=True, use_holidays=True, use_sport=True
+                use_weather=True, use_holidays=True, use_sport=True, use_outliers=True
                 ):
         self.seq_length = seq_length
         self.pred_length = pred_length
@@ -24,6 +24,7 @@ class LSTMForecaster:
         self.use_weather = use_weather
         self.use_holidays = use_holidays
         self.use_sport = use_sport
+        self.use_outliers = use_outliers
 
     def prepare_data(self, df):
         # Base time features
@@ -39,6 +40,8 @@ class LSTMForecaster:
             self.features.append('is_holiday')
         if self.use_sport:
             self.features.append('is_sport_event')
+        if self.use_outliers:
+            self.features += ["Débit horaire_outlier_iqr", "Taux d'occupation_outlier_iqr"]
         if self.use_weather:
             self.features += [
                 'temperature_2m (°C)', 
@@ -127,13 +130,18 @@ class LSTMForecaster:
         return y_test_inv, y_pred_inv
 
     def plot_predictions(self, y_test_inv, y_pred_inv, n_plot=72):
-        plt.figure(figsize=(15,5))
+        n_targets = len(self.targets)
+        # Create one subplot per target stacked vertically
+        fig, axes = plt.subplots(n_targets, 1, figsize=(15, 4 * n_targets), squeeze=False)
+
         for i, target in enumerate(self.targets):
-            plt.plot(y_test_inv[:n_plot,0,i], label=f"True {target}", linewidth=2)
-            plt.plot(y_pred_inv[:n_plot,0,i], '--', label=f"Predicted {target}")
-        plt.title("Forecatsing LSTM multi-target")
-        plt.xlabel("Hour (index)")
-        plt.legend()
+            ax = axes[i, 0]
+            ax.plot(y_test_inv[:n_plot, 0, i], label=f"True {target}", linewidth=2)
+            ax.plot(y_pred_inv[:n_plot, 0, i], '--', label=f"Predicted {target}")
+            ax.set_title(f"Forecasting - {target}")
+            ax.set_xlabel("Hour (index)")
+            ax.legend()
+
         plt.tight_layout()
         plt.show()
     
