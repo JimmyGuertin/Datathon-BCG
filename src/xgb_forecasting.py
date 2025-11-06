@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 from sklearn.model_selection import TimeSeriesSplit
 import xgboost as xgb
 
@@ -100,15 +101,16 @@ class XGBoostModel:
             print(f"{t} : RMSE = {rmse:.2f}, Mean = {mean_val:.2f}, Relative Error = {rel_error:.2f}%")
         return y_true_array, y_pred
     
+
     def cross_validate(self, n_splits=5, **xgb_params):
         """
-        TimeSeries cross-validation
+        TimeSeries cross-validation with RMSE, MAE, and MAPE evaluation
         """
         tscv = TimeSeriesSplit(n_splits=n_splits)
         X = self.scaler_X.transform(self.df[self.features].values)
         y = np.column_stack([self.scalers_y[t].transform(self.df[[t]]) for t in self.targets])
 
-        cv_results = {t: [] for t in self.targets}
+        cv_results = {t: {'rmse': [], 'mae': [], 'mape': [], 'RMSE/MEAN':[]} for t in self.targets}
 
         for train_idx, test_idx in tscv.split(X):
             X_train_cv, X_test_cv = X[train_idx], X[test_idx]
@@ -129,14 +131,27 @@ class XGBoostModel:
                 y_pred_cv = model.predict(X_test_cv)
                 y_pred_cv = self.scalers_y[t].inverse_transform(y_pred_cv.reshape(-1,1)).ravel()
                 y_true_cv = self.scalers_y[t].inverse_transform(y_test_cv[:, i].reshape(-1,1)).ravel()
-                
+
+                mean_true = np.mean(y_true_cv)                
                 rmse = np.sqrt(mean_squared_error(y_true_cv, y_pred_cv))
-                cv_results[t].append(rmse)
-        
+                rmse_mean = rmse/mean_true*100
+                mae = mean_absolute_error(y_true_cv, y_pred_cv)
+                mape = mean_absolute_percentage_error(y_true_cv, y_pred_cv) * 100  # en pourcentage
+
+                cv_results[t]['rmse'].append(rmse)
+                cv_results[t]['mae'].append(mae)
+                cv_results[t]['mape'].append(mape)
+                cv_results[t]['RMSE/MEAN'].append(rmse_mean)
+
         # Display
         for t in self.targets:
-            rmses = cv_results[t]
-            print(f"{t} : CV RMSE mean = {np.mean(rmses):.2f}, std = {np.std(rmses):.2f}")
-        
-        return cv_results
+            rmses = cv_results[t]['rmse']
+            maes = cv_results[t]['mae']
+            mapes = cv_results[t]['mape']
+            RMSE_mean = cv_results[t]['RMSE/MEAN']
+            print(f"{t} : CV RMSE mean = {np.mean(rmses):.2f}, std = {np.std(rmses):.2f} | "
+                f"MAE mean = {np.mean(maes):.2f}, std = {np.std(maes):.2f} | "
+                f"\n MAPE mean = {np.mean(mapes):.2f}%, std = {np.std(mapes):.2f}% | "
+                f"RMSE/mean = {np.mean(RMSE_mean):.2f}%, std = {np.std(RMSE_mean):.2f}")
 
+        return cv_results
