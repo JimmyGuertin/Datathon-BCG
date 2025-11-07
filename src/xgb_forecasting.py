@@ -155,3 +155,70 @@ class XGBoostModel:
                 f"RMSE/mean = {np.mean(RMSE_mean):.2f}%, std = {np.std(RMSE_mean):.2f}")
 
         return cv_results
+    
+
+    def full_train(self, **xgb_params):
+        """
+        Fit XGBoost models on the full dataset (no train/test split).
+        Returns the trained models dictionary.
+        """
+        df = self.df.dropna(subset=self.features + self.targets).copy()
+        
+        X = df[self.features].values
+        y = df[self.targets].values
+
+        # Scaling features
+        self.scaler_X = StandardScaler()
+        X_scaled = self.scaler_X.fit_transform(X)
+
+        # Scaling targets and log-transform if needed
+        y_scaled = np.zeros_like(y)
+        for i, t in enumerate(self.targets):
+            scaler_y = StandardScaler()
+            y_scaled[:, i] = scaler_y.fit_transform(y[:, i].reshape(-1,1)).ravel()
+            self.scalers_y[t] = scaler_y
+            if self.log_transform:
+                y_scaled[:, i] = np.log1p(y[:, i])
+
+        # Fit a model for each target
+        self.models = {}
+        for i, t in enumerate(self.targets):
+            model = xgb.XGBRegressor(
+                objective='reg:squarederror',
+                n_estimators=200,
+                learning_rate=0.05,
+                max_depth=5,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                random_state=42,
+                **xgb_params
+            )
+            model.fit(X_scaled, y_scaled[:, i])
+            self.models[t] = model
+
+        print("Full training completed on all data.")
+        return self.models
+
+    
+    def predict_final(self):
+        """
+        Predict on the full dataset (all available data).
+        Returns descaled predictions.
+        """
+        if not self.models:
+            raise ValueError("Models are not trained yet. Run full_train() first.")
+
+        df = self.df.dropna(subset=self.features + self.targets).copy()
+        X = df[self.features].values
+        X_scaled = self.scaler_X.transform(X)
+
+        y_pred = np.zeros((X.shape[0], len(self.targets)))
+        for i, t in enumerate(self.targets):
+            pred = self.models[t].predict(X_scaled)
+            if self.log_transform:
+                pred = np.expm1(pred)
+            else:
+                pred = self.scalers_y[t].inverse_transform(pred.reshape(-1,1)).ravel()
+            y_pred[:, i] = pred
+
+        return y_pred
