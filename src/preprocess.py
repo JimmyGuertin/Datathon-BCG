@@ -246,9 +246,10 @@ def add_school_holidays_paris(df, date_col='Date et heure de comptage'):
 
 
 def merge_meteo(df_champs):
-    df_meteo_1 = pd.read_csv("meteo/open-meteo-48.86N2.34E50m(1).csv",sep=",",header=2)
-    df_meteo_2 = pd.read_csv("meteo/open-meteo-48.87N2.33E50m.csv",sep=",",header=2)
-    df_meteo = pd.concat([df_meteo_1,df_meteo_2],axis=0)
+    df_meteo_1 = pd.read_csv("meteo/open-meteo-48.86N2.33E26m.csv",sep=",",header=2)
+    df_meteo_2 = pd.read_csv("meteo/open-meteo-48.86N2.34E50m(1).csv",sep=",",header=2)
+    df_meteo_3 = pd.read_csv("meteo/open-meteo-48.87N2.33E50m.csv",sep=",",header=2)
+    df_meteo = pd.concat([df_meteo_1,df_meteo_2,df_meteo_3],axis=0)
     df_meteo = df_meteo.drop_duplicates()
     df_meteo = df_meteo.drop(columns=['precipitation_probability (%)'])
 
