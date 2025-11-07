@@ -200,18 +200,26 @@ class XGBoostModel:
         return self.models
 
     
-    def predict_final(self):
+    def predict_final(self, df):
         """
-        Predict on the full dataset (all available data).
-        Returns descaled predictions.
+        Predict on a provided DataFrame using trained models.
+        The DataFrame must contain all required features.
+        Returns descaled predictions as a numpy array.
         """
         if not self.models:
             raise ValueError("Models are not trained yet. Run full_train() first.")
-
-        df = self.df.dropna(subset=self.features + self.targets).copy()
-        X = df[self.features].values
+       
+        # Vérifie que toutes les features nécessaires sont bien présentes
+        missing_features = [f for f in self.features if f not in df.columns]
+        if missing_features:
+            raise ValueError(f"Missing features in provided DataFrame: {missing_features}")
+ 
+        # Nettoyage et préparation
+        df_input = df.dropna(subset=self.features).copy()
+        X = df_input[self.features].values
         X_scaled = self.scaler_X.transform(X)
-
+ 
+        # Prédictions
         y_pred = np.zeros((X.shape[0], len(self.targets)))
         for i, t in enumerate(self.targets):
             pred = self.models[t].predict(X_scaled)
@@ -220,5 +228,13 @@ class XGBoostModel:
             else:
                 pred = self.scalers_y[t].inverse_transform(pred.reshape(-1,1)).ravel()
             y_pred[:, i] = pred
+ 
+        # Créer le DataFrame final avec uniquement date, hour et prédictions
+        df_pred = pd.DataFrame()
+        
+        for i, t in enumerate(self.targets):
+            df_pred[f"pred_{t}"] = y_pred[:, i]
 
-        return y_pred
+        return df_pred
+        
+ 

@@ -29,11 +29,7 @@ def create_datetime_features(df, fill_hours, datetime_col='Date et heure de comp
         df : pandas.DataFrame avec nouvelles colonnes et index complet si fill_hours=True
     """
     # Convertir en datetime (UTC pour homogénéité)
-    df[datetime_col] = pd.to_datetime(df[datetime_col], errors='coerce', utc=True)
-    
-    # Trier par date
-    df = df.sort_values(by=datetime_col).reset_index(drop=True)
-
+    df[datetime_col] = (pd.to_datetime(df[datetime_col], errors='coerce', utc=True).dt.tz_convert('Europe/Paris'))
     # Extraire features
     df['date'] = df[datetime_col].dt.date
     df['hour'] = df[datetime_col].dt.hour
@@ -246,20 +242,35 @@ def add_school_holidays_paris(df, date_col='Date et heure de comptage'):
 
 
 def merge_meteo(df_champs):
-    df_meteo_1 = pd.read_csv("meteo/open-meteo-48.86N2.33E26m.csv",sep=",",header=2)
-    df_meteo_2 = pd.read_csv("meteo/open-meteo-48.86N2.34E50m(1).csv",sep=",",header=2)
-    df_meteo_3 = pd.read_csv("meteo/open-meteo-48.87N2.33E50m.csv",sep=",",header=2)
-    df_meteo = pd.concat([df_meteo_1,df_meteo_2,df_meteo_3],axis=0)
-    df_meteo = df_meteo.drop_duplicates()
-    df_meteo = df_meteo.drop(columns=['precipitation_probability (%)'])
+    # --- Lecture des fichiers météo ---
+    df_meteo_1 = pd.read_csv("meteo/open-meteo-48.86N2.33E26m.csv", sep=",", header=2)
+    df_meteo_2 = pd.read_csv("meteo/open-meteo-48.86N2.34E50m(1).csv", sep=",", header=2)
+    df_meteo_3 = pd.read_csv("meteo/open-meteo-48.87N2.33E50m.csv", sep=",", header=2)
 
-    df_champs['date']=pd.to_datetime(df_champs['date'])
+    # --- Harmonisation des colonnes ---
+    # Si certaines colonnes n'existent pas dans tous les fichiers, on les ajoute
+    all_columns = set(df_meteo_1.columns) | set(df_meteo_2.columns) | set(df_meteo_3.columns)
+    for df in [df_meteo_1, df_meteo_2, df_meteo_3]:
+        missing_cols = all_columns - set(df.columns)
+        for col in missing_cols:
+            df[col] = np.nan
 
-    df_meteo["time"] = pd.to_datetime(df_meteo["time"])  
+    # --- Concaténation et nettoyage ---
+    df_meteo = pd.concat([df_meteo_1, df_meteo_2, df_meteo_3], axis=0, ignore_index=True)
+    df_meteo = df_meteo.drop_duplicates(subset=["time"])
     
-    df_champs=df_champs.merge(df_meteo,right_on='time',left_on='date',how='left')
-    return(df_champs)
+    # On supprime la colonne précipitation_probability si elle existe
+    if "precipitation_probability (%)" in df_meteo.columns:
+        df_meteo = df_meteo.drop(columns=["precipitation_probability (%)"])
 
+    # --- Conversion des dates ---
+    df_champs["date"] = pd.to_datetime(df_champs["date"], errors="coerce")
+    df_meteo["time"] = pd.to_datetime(df_meteo["time"], errors="coerce")
+
+    # --- Fusion ---
+    df_merged = df_champs.merge(df_meteo, left_on="date", right_on="time", how="left")
+
+    return df_merged
 
 def mark_outliers_and_special_events(df, targets, special_events_dict, top_n=20, iqr_factor=1.5):
     """
@@ -441,3 +452,122 @@ def create_lag_features(df, targets, lags_hours, dropna=True):
         df_lagged = df_lagged.dropna(subset=cols_to_check).copy()
 
     return df_lagged, features
+
+
+
+import pandas as pd
+
+# --- Sous-fonction 1 : création du squelette de test ---
+def create_base_test_dataset():
+    """Crée un DataFrame test (9–11 novembre 2025) avec toutes les features de base."""
+    date_range = pd.date_range("2025-11-09 00:00:00", "2025-11-11 23:00:00", freq="H")
+
+    df_test = pd.DataFrame({
+        "Date et heure de comptage": date_range.strftime("%Y-%m-%dT%H:%M:%S+01:00"),
+        "Débit horaire": [None] * len(date_range),
+        "Taux d'occupation": [None] * len(date_range),
+        "Etat trafic": [None] * len(date_range),
+    })
+
+    # Application du préprocessing
+    df_test = order_by_date(df_test)
+    df_test = create_datetime_features(df_test, fill_hours=True)
+    df_test = vacances_by_zone(df_test)
+    df_test = add_school_holidays_paris(df_test)
+    df_test = create_holidays(df_test)
+    df_test["day_type"] = df_test.apply(day_type, axis=1)
+    df_test = add_cyclic_features(df_test)
+    df_test = merge_meteo(df_test)
+
+    # Ajout des colonnes d'outliers
+    new_cols = [
+        'Débit horaire_outlier_high',
+        'Débit horaire_outlier_low',
+        'Débit horaire_special_event',
+        "Taux d'occupation_outlier_high",
+        "Taux d'occupation_outlier_low",
+        "Taux d'occupation_special_event",
+    ]
+    for col in new_cols:
+        df_test[col] = False
+
+    return df_test
+
+
+# --- Sous-fonction 2 : copie des valeurs d'outliers depuis les données 2024 ---
+def copy_outliers_from_2024(df_test, df_train, new_cols, name):
+    """Copie les colonnes d’outliers/special_event de 2024 sur 2025 pour une période donnée."""
+    df_train["date"] = pd.to_datetime(df_train["date"])
+
+    mask = (
+        (df_train["date"] >= pd.to_datetime("2024-11-09")) &
+        (df_train["date"] <= pd.to_datetime("2024-11-11"))
+    )
+    df_period = df_train.loc[mask].copy()
+
+    if len(df_period) != len(df_test):
+        print(f"⚠️ Attention : {name} n’a pas le même nombre d’heures ({len(df_period)} vs {len(df_test)})")
+
+    for col in new_cols:
+        df_test[col] = df_period[col].reset_index(drop=True)
+
+    print(f"✅ {name} – valeurs copiées ({len(df_period)} heures)")
+    return df_test
+
+
+# --- Fonction principale ---
+def create_test_dataset(champs_elysees_df, convention_df, sts_peres_df):
+    """Crée les trois DataFrames test (Champs, Convention, Pères) avec copie des outliers 2024 et lags 72h/168h."""
+
+    df_test = create_base_test_dataset()
+    new_cols = [
+        'Débit horaire_outlier_high',
+        'Débit horaire_outlier_low',
+        'Débit horaire_special_event',
+        "Taux d'occupation_outlier_high",
+        "Taux d'occupation_outlier_low",
+        "Taux d'occupation_special_event",
+    ]
+
+    # Création des trois DataFrames
+    df_test_champs_2025 = df_test.copy()
+    df_test_convention_2025 = df_test.copy()
+    df_test_peres_2025 = df_test.copy()
+
+    # --- Copie des valeurs d’outliers depuis 2024 ---
+    df_test_champs_2025 = copy_outliers_from_2024(df_test_champs_2025, champs_elysees_df, new_cols, "Champs-Élysées")
+    df_test_convention_2025 = copy_outliers_from_2024(df_test_convention_2025, convention_df, new_cols, "Convention")
+    df_test_peres_2025 = copy_outliers_from_2024(df_test_peres_2025, convention_df, new_cols, "Pères")
+
+    lag_hours = [72,168]
+    targets = ["Débit horaire", "Taux d'occupation"]
+
+    for df_test, df_train, name in [
+        (df_test_champs_2025, champs_elysees_df, "Champs-Élysées"),
+        (df_test_convention_2025, convention_df, "Convention"),
+        (df_test_peres_2025, sts_peres_df, "Pères")
+    ]:
+        # S'assurer que date est bien datetime
+        df_train["date"] = pd.to_datetime(df_train["date"])
+
+        # Créer un index datetime pour le train à partir de date+hour
+        df_train_indexed = df_train.copy()
+        df_train_indexed["datetime_index"] = df_train_indexed["date"] + pd.to_timedelta(df_train_indexed["hour"], unit="h")
+        df_train_indexed = df_train_indexed.set_index("datetime_index")
+
+        for target in targets:
+            for lag in lag_hours:
+                col_name = f"{target}_lag_{lag}h"
+                lag_values = []
+
+                for idx, row in df_test.iterrows():
+                    dt = pd.to_datetime(row["date"]) + pd.Timedelta(hours=row["hour"])
+                    dt_lag = dt - pd.Timedelta(hours=lag)
+
+                    if dt_lag in df_train_indexed.index:
+                        lag_values.append(df_train_indexed.loc[dt_lag, target])
+                    else:
+                        lag_values.append(np.nan)
+
+                df_test[col_name] = lag_values
+    return df_test_champs_2025, df_test_convention_2025, df_test_peres_2025
