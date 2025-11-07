@@ -29,11 +29,7 @@ def create_datetime_features(df, fill_hours, datetime_col='Date et heure de comp
         df : pandas.DataFrame avec nouvelles colonnes et index complet si fill_hours=True
     """
     # Convertir en datetime (UTC pour homogénéité)
-    df[datetime_col] = pd.to_datetime(df[datetime_col], errors='coerce', utc=True)
-    
-    # Trier par date
-    df = df.sort_values(by=datetime_col).reset_index(drop=True)
-
+    df[datetime_col] = (pd.to_datetime(df[datetime_col], errors='coerce', utc=True).dt.tz_convert('Europe/Paris'))
     # Extraire features
     df['date'] = df[datetime_col].dt.date
     df['hour'] = df[datetime_col].dt.hour
