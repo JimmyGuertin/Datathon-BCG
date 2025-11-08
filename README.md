@@ -1,6 +1,6 @@
 #  Datathon BCG – Groupe Bison Fûté
 
-## 🎯 Objectif du projet
+## Objectif du projet
 
 L’objectif de ce projet est de **prédire le débit horaire de circulation et le taux d'occupation** sur trois axes parisiens :  
 - **Champs-Élysées**  
@@ -9,32 +9,28 @@ L’objectif de ce projet est de **prédire le débit horaire de circulation et 
 
 Les prédictions s’appuient sur des données **temporelles**, **calendaires** et **météorologiques**.
 
-👉 Le livrable final est un fichier **`output_bison_futé.csv`**, contenant les **prédictions du 9 au 11 novembre 2025** pour chaque axe.
+ Le livrable final est un fichier **`output_bison_futé.csv`**, contenant les **prédictions du 9 au 11 novembre 2025** pour chaque axe.
 
 ---
 
-## 🗂️ Organisation du dépôt
-
-datathon-BCG/
-│
-├── data/
-│ ├── traffic/ # Données de trafic brutes par axe
-│ ├── meteo/ # Données météorologiques (Open-Meteo)
-│ └── vacances/ # Calendrier scolaire et jours fériés
-│
-├── notebooks/
-│ ├── eda.ipynb # Analyse exploratoire (EDA)
-│ ├── forecasting_champs.ipynb # Modélisation LSTM – Champs-Élysées
-│ ├── forecasting_convention.ipynb # Modélisation XGBoost – Convention
-│ ├── forecasting_peres.ipynb # Modélisation XGBoost – Saint-Pères
-│ └── final_training_prediction.ipynb # Prédictions finales et génération du CSV
-│
-└── src/
-├── preprocess.py # Fonctions de préparation et enrichissement des données
-├── xgb_forecasting.py # Entraînement et prédiction via XGBoost
-└── lstm_forecasting.py # Entraînement et prédiction via LSTM
+##  Organisation du dépôt
 
 
+- datathon-BCG/
+  - data/
+    - traffic/        : Données de trafic brutes par axe
+    - meteo/          : Données météorologiques (Open-Meteo)
+    - vacances/       : Calendrier scolaire et jours fériés
+  - notebooks/
+    - eda.ipynb                       : Analyse exploratoire (EDA)
+    - forecasting_champs.ipynb        : Modélisation LSTM – Champs-Élysées
+    - forecasting_convention.ipynb    : Modélisation XGBoost – Convention
+    - forecasting_peres.ipynb         : Modélisation XGBoost – Saint-Pères
+    - final_training_prediction.ipynb : Prédictions finales et génération du CSV
+  - src/
+    - preprocess.py       : Fonctions de préparation et enrichissement des données
+    - xgb_forecasting.py  : Entraînement et prédiction via XGBoost
+    - lstm_forecasting.py : Entraînement et prédiction via LSTM
 ---
 
 ##  Pipeline de Préparation des Données
