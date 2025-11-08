@@ -196,7 +196,7 @@ def smooth_targets(df, targets, window=2):
     return df_lisse
 
 def vacances_by_zone(df):
-    vacances = pd.read_csv('vacances/vacances.csv', parse_dates=['date'])
+    vacances = pd.read_csv('../data/vacances/vacances.csv', parse_dates=['date'])
 
     # Renommer pour uniformité si nécessaire
     vacances = vacances.rename(columns={
@@ -243,9 +243,9 @@ def add_school_holidays_paris(df, date_col='Date et heure de comptage'):
 
 def merge_meteo(df_champs):
     # --- Lecture des fichiers météo ---
-    df_meteo_1 = pd.read_csv("meteo/open-meteo-48.86N2.33E26m.csv", sep=",", header=2)
-    df_meteo_2 = pd.read_csv("meteo/open-meteo-48.86N2.34E50m(1).csv", sep=",", header=2)
-    df_meteo_3 = pd.read_csv("meteo/open-meteo-48.87N2.33E50m.csv", sep=",", header=2)
+    df_meteo_1 = pd.read_csv("../data/meteo/open-meteo-48.86N2.33E26m.csv", sep=",", header=2)
+    df_meteo_2 = pd.read_csv("../data/meteo/open-meteo-48.86N2.34E50m(1).csv", sep=",", header=2)
+    df_meteo_3 = pd.read_csv("../data/meteo/open-meteo-48.87N2.33E50m.csv", sep=",", header=2)
 
     # --- Harmonisation des colonnes ---
     # Si certaines colonnes n'existent pas dans tous les fichiers, on les ajoute
