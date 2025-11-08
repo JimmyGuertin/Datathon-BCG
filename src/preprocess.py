@@ -536,12 +536,12 @@ def create_test_dataset(champs_elysees_df, convention_df, sts_peres_df):
 
     # --- Copie des valeurs d’outliers depuis 2024 ---
     df_test_champs_2025 = copy_outliers_from_2024(df_test_champs_2025, champs_elysees_df, new_cols, "Champs-Élysées")
-    df_test_convention_2025 = copy_outliers_from_2024(df_test_convention_2025, convention_df, new_cols, "Convention")
-    df_test_peres_2025 = copy_outliers_from_2024(df_test_peres_2025, convention_df, new_cols, "Pères")
+    df_test_convention_2025 = copy_outliers_from_2024(df_test_convention_2025, sts_peres_df, new_cols, "Convention")
+    df_test_peres_2025 = copy_outliers_from_2024(df_test_peres_2025, sts_peres_df, new_cols, "Pères")
 
     lag_hours = [72,168]
     targets = ["Débit horaire", "Taux d'occupation"]
-
+    print('test')
     for df_test, df_train, name in [
         (df_test_champs_2025, champs_elysees_df, "Champs-Élysées"),
         (df_test_convention_2025, convention_df, "Convention"),
@@ -562,7 +562,12 @@ def create_test_dataset(champs_elysees_df, convention_df, sts_peres_df):
 
                 for idx, row in df_test.iterrows():
                     dt = pd.to_datetime(row["date"]) + pd.Timedelta(hours=row["hour"])
-                    dt_lag = dt - pd.Timedelta(hours=lag)
+                    # --- 👇 Ajustement du lag selon la date ---
+                    if dt.date() == pd.to_datetime("2025-11-11").date() and lag == 72:
+                        lag_to_use = 96  # on force 96h le 11 novembre
+                    else:
+                        lag_to_use = lag  # sinon, on garde 72h
+                    dt_lag = dt - pd.Timedelta(hours=lag_to_use)
 
                     if dt_lag in df_train_indexed.index:
                         lag_values.append(df_train_indexed.loc[dt_lag, target])
