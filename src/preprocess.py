@@ -511,7 +511,7 @@ def copy_outliers_from_2024(df_test, df_train, new_cols, name):
     for col in new_cols:
         df_test[col] = df_period[col].reset_index(drop=True)
 
-    print(f"✅ {name} – valeurs copiées ({len(df_period)} heures)")
+    
     return df_test
 
 
@@ -541,7 +541,6 @@ def create_test_dataset(champs_elysees_df, convention_df, sts_peres_df):
 
     lag_hours = [72,168]
     targets = ["Débit horaire", "Taux d'occupation"]
-    print('test')
     for df_test, df_train, name in [
         (df_test_champs_2025, champs_elysees_df, "Champs-Élysées"),
         (df_test_convention_2025, convention_df, "Convention"),
